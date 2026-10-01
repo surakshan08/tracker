@@ -1057,7 +1057,7 @@ function calculateTripEstimation() {
 
     // Dynamic speed estimation for ETA calculation
     let effectiveKmh = 80;
-    if (telemetryConnected && currentSpeed > 25) {
+    if (telemetryConnected && currentSpeed > 20) {
         // Truck is driving live
         effectiveKmh = currentSpeed;
     } else if (currentLimit && currentLimit > 30) {
@@ -1075,16 +1075,23 @@ function calculateTripEstimation() {
     } else if (durationMins >= 60) {
         const hrs = Math.floor(durationMins / 60);
         const mins = durationMins % 60;
-        durationFormatted = `${hrs}h ${mins}m left`;
+        durationFormatted = mins > 0 ? `${hrs}h ${mins}m left` : `${hrs}h left`;
     } else {
         durationFormatted = `${durationMins}m left`;
     }
 
-    // Format ETA arrival clock time (e.g. 15:40)
-    const etaDate = new Date(Date.now() + durationMins * 60 * 1000);
-    const etaHrs = String(etaDate.getHours()).padStart(2, '0');
-    const etaMins = String(etaDate.getMinutes()).padStart(2, '0');
-    const etaFormatted = remKm === 0 ? 'Arrived' : `${etaHrs}:${etaMins}`;
+    // Format ETA arrival clock time (e.g. 12:03 AM / 3:45 PM)
+    const now = new Date();
+    const etaDate = new Date(now.getTime() + durationMins * 60 * 1000);
+    let hours = etaDate.getHours();
+    const minsStr = String(etaDate.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const h12 = hours % 12 || 12;
+    const isNextDay = etaDate.getDate() !== now.getDate();
+    const nextDayTag = isNextDay ? ' (+1d)' : '';
+    
+    // Clear formatted ETA (e.g. "12:03 AM" or "12:03 AM (+1d)")
+    const etaFormatted = remKm === 0 ? 'Arrived' : `${h12}:${minsStr} ${ampm}${nextDayTag}`;
 
     // Estimated speed / average trip pace
     let paceKmh = effectiveKmh;
