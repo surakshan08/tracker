@@ -1,0 +1,96 @@
+{
+  "name": "tracker",
+  "version": "1.1.0",
+  "description": "TruckersMP Overlay Tracker",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "sync": "node auto_git_sync.js",
+    "watch:git": "node auto_git_sync.js",
+    "push": "node auto_git_sync.js --once",
+    "build": "electron-builder --win",
+    "build:installer": "electron-builder --win --config.win.target=nsis",
+    "build:portable": "electron-builder --win --config.win.target=portable",
+    "build:zip": "electron-builder --win --config.win.target=zip",
+    "pack": "electron-builder --win --dir",
+    "release": "electron-builder --win -p always"
+  },
+  "author": "Sukku (Developer)",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.tracker.overlay",
+    "productName": "Tracker",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Sukku",
+        "repo": "tracker"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "icon.ico",
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "Tracker",
+      "installerIcon": "icon.ico",
+      "uninstallerIcon": "icon.ico",
+      "artifactName": "Tracker-Setup-${version}.exe",
+      "uninstallDisplayName": "Tracker"
+    },
+    "portable": {
+      "artifactName": "Tracker-Portable.exe"
+    },
+    "files": [
+      "main.js",
+      "discord_rpc.js",
+      "overlay.html",
+      "overlay.css",
+      "overlay.js",
+      "icon.ico",
+      "icon.png",
+      "bridge/**"
+    ],
+    "extraResources": [
+      {
+        "from": "bridge",
+        "to": "bridge"
+      }
+    ],
+    "asarUnpack": [
+      "bridge/**"
+    ]
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
+  }
+}
