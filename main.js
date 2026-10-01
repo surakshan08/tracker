@@ -74,13 +74,23 @@ let discordRpc = null;
 let discordRpcEnabled = true;
 
 // ============================================================
-// AUTO UPDATER (GITHUB RELEASES)
+// AUTO UPDATER (GITHUB RELEASES & GIT AUTO-PULL)
 // ============================================================
 
-// Ask before downloading: user confirms download first
-autoUpdater.autoDownload = false;
+// Automatically download update as soon as detected on GitHub
+autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
 autoUpdater.allowPrerelease = false;
+
+try {
+  autoUpdater.setFeedURL({
+    provider: 'github',
+    owner: 'surakshan08',
+    repo: 'tracker'
+  });
+} catch (e) {
+  console.warn('[AutoUpdater] Feed URL config:', e.message);
+}
 
 // Custom logging for updates
 autoUpdater.logger = {
@@ -106,7 +116,7 @@ autoUpdater.on('checking-for-update', () => {
 
 autoUpdater.on('update-available', (info) => {
   updateCheckInProgress = false;
-  console.log('[AutoUpdater] Update available:', info.version);
+  console.log('[AutoUpdater] Update available on GitHub:', info.version);
   sendToWindow('update-available', {
     version: info.version,
     releaseDate: info.releaseDate,
@@ -114,13 +124,13 @@ autoUpdater.on('update-available', (info) => {
     currentVersion: app.getVersion()
   });
   if (tray) {
-    tray.setToolTip(`Tracker (Update v${info.version} Available)`);
+    tray.setToolTip(`Tracker (Downloading Update v${info.version}...)`);
   }
 });
 
 autoUpdater.on('update-not-available', (info) => {
   updateCheckInProgress = false;
-  console.log('[AutoUpdater] Update not available. Running latest version.');
+  console.log('[AutoUpdater] Update not available. Running latest release.');
   sendToWindow('update-not-available', {
     version: info ? info.version : app.getVersion(),
     currentVersion: app.getVersion()
@@ -157,10 +167,86 @@ autoUpdater.on('error', (err) => {
   });
 });
 
-function checkForUpdatesManual() {
+/**
+ * Checks for updates:
+ * 1. If in Git repo (dev / source mode): fetches and pulls latest changes automatically from GitHub main branch
+ * 2. If packaged app: triggers electron-updater to fetch from GitHub releases and download
+ */
+async function triggerAutoUpdateCheck() {
   if (updateCheckInProgress) return;
-  autoUpdater.checkForUpdates().catch((err) => {
-    console.warn('[AutoUpdater] Manual check notice:', err.message);
+  updateCheckInProgress = true;
+
+  sendToWindow('update-status', { status: 'checking' });
+
+  // If running from source / git repo, check git remote
+  const gitDir = path.join(__dirname, '.git');
+  if (!app.isPackaged && fs.existsSync(gitDir)) {
+    const { exec } = require('child_process');
+    console.log('[AutoUpdater] In source mode: Fetching latest changes from GitHub (git origin/main)...');
+    
+    exec('git fetch origin main', { cwd: __dirname }, (fetchErr) => {
+      if (fetchErr) {
+        console.warn('[AutoUpdater] Git fetch failed, falling back to electron-updater:', fetchErr.message);
+        checkPackagedUpdater();
+        return;
+      }
+
+      exec('git rev-parse HEAD && git rev-parse origin/main', { cwd: __dirname }, (revErr, stdout) => {
+        if (revErr || !stdout) {
+          checkPackagedUpdater();
+          return;
+        }
+
+        const lines = stdout.trim().split(/\r?\n/).filter(Boolean);
+        const localHead = lines[0]?.trim();
+        const remoteHead = lines[1]?.trim();
+
+        if (localHead && remoteHead && localHead !== remoteHead) {
+          // New commits found on GitHub! Automatically pull!
+          console.log(`[AutoUpdater] New commit found on GitHub (${remoteHead.substring(0, 7)}). Pulling changes...`);
+          
+          exec('git log -1 --pretty=format:"%s" origin/main', { cwd: __dirname }, (logErr, commitMsg) => {
+            const notes = commitMsg ? commitMsg.trim() : 'Latest updates from GitHub repository';
+
+            exec('git pull origin main', { cwd: __dirname }, (pullErr, pullOut) => {
+              updateCheckInProgress = false;
+              if (pullErr) {
+                console.error('[AutoUpdater] Git pull error:', pullErr.message);
+                sendToWindow('update-error', { message: `Git pull failed: ${pullErr.message}` });
+                return;
+              }
+
+              console.log('[AutoUpdater] Successfully pulled latest updates from GitHub!');
+              sendToWindow('git-update-applied', {
+                commit: remoteHead.substring(0, 7),
+                message: notes,
+                version: app.getVersion()
+              });
+            });
+          });
+        } else {
+          updateCheckInProgress = false;
+          console.log('[AutoUpdater] Local branch is up to date with GitHub main branch.');
+          sendToWindow('update-not-available', {
+            version: app.getVersion(),
+            isGit: true,
+            commit: localHead ? localHead.substring(0, 7) : ''
+          });
+        }
+      });
+    });
+    return;
+  }
+
+  checkPackagedUpdater();
+}
+
+function checkPackagedUpdater() {
+  autoUpdater.checkForUpdates().then((result) => {
+    updateCheckInProgress = false;
+  }).catch((err) => {
+    updateCheckInProgress = false;
+    console.warn('[AutoUpdater] Updater error:', err.message);
     sendToWindow('update-error', { message: err.message });
   });
 }
@@ -1232,8 +1318,8 @@ ipcMain.handle('get-app-version', () => {
 
 ipcMain.handle('check-for-updates', async () => {
   try {
-    const result = await autoUpdater.checkForUpdates();
-    return { success: true, updateInfo: result?.updateInfo };
+    await triggerAutoUpdateCheck();
+    return { success: true };
   } catch (err) {
     console.warn('[AutoUpdater] Check handler error:', err.message);
     return { success: false, error: err.message };
@@ -1286,14 +1372,14 @@ app.whenReady().then(() => {
   // Schedule auto-update checks for users
   // Check automatically 8 seconds after app launch (ensures smooth UI startup)
   setTimeout(() => {
-    autoUpdater.checkForUpdates().catch((err) => {
+    triggerAutoUpdateCheck().catch((err) => {
       console.log('[AutoUpdater] Initial check notice:', err.message);
     });
   }, 8000);
 
   // Automatically check every 2 hours while the app is running
   setInterval(() => {
-    autoUpdater.checkForUpdates().catch((err) => {
+    triggerAutoUpdateCheck().catch((err) => {
       console.log('[AutoUpdater] Periodic check notice:', err.message);
     });
   }, 2 * 60 * 60 * 1000);

@@ -3652,3 +3652,17 @@ body.is-resizing #resizeHandle {
     color: var(--text-muted);
     text-align: right;
 }
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.spin-update svg {
+    animation: spin 0.85s linear infinite;
+}
+
+.btn-update-reloading {
+    background: linear-gradient(135deg, #10b981, #059669) !important;
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.4) !important;
+}

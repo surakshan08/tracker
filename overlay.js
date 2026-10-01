@@ -2967,12 +2967,30 @@ function setupAutoUpdater() {
     const updateNewVer = document.getElementById('updateNewVer');
     const updateNotesContent = document.getElementById('updateNotesContent');
 
+    function setCheckingState(isChecking) {
+        if (btnCheckUpdate) {
+            if (isChecking) btnCheckUpdate.classList.add('spin-update');
+            else btnCheckUpdate.classList.remove('spin-update');
+        }
+        if (btnSettingsCheck) {
+            if (isChecking) {
+                btnSettingsCheck.classList.add('spin-update');
+                btnSettingsCheck.disabled = true;
+            } else {
+                btnSettingsCheck.classList.remove('spin-update');
+                btnSettingsCheck.disabled = false;
+            }
+        }
+    }
+
     function triggerManualCheck() {
         manualCheckTriggered = true;
+        setCheckingState(true);
         showToast('Checking for updates on GitHub...');
         ipcRenderer.invoke('check-for-updates').catch((err) => {
             showToast(`Update check failed: ${err.message || err}`);
             manualCheckTriggered = false;
+            setCheckingState(false);
         });
     }
 
@@ -2999,6 +3017,10 @@ function setupAutoUpdater() {
 
     if (btnDownloadUpdate) {
         btnDownloadUpdate.addEventListener('click', () => {
+            if (btnDownloadUpdate.dataset.isReload) {
+                window.location.reload();
+                return;
+            }
             if (isUpdateDownloaded) {
                 // Quit and install immediately
                 if (btnDownloadText) btnDownloadText.textContent = 'Restarting...';
@@ -3006,29 +3028,76 @@ function setupAutoUpdater() {
                 ipcRenderer.send('quit-and-install-update');
             } else {
                 // Start downloading
-                if (btnDownloadText) btnDownloadText.textContent = 'Connecting...';
+                if (btnDownloadText) btnDownloadText.textContent = 'Downloading...';
                 btnDownloadUpdate.disabled = true;
                 if (updateProgressSection) updateProgressSection.style.display = 'flex';
-                if (progressStatus) progressStatus.textContent = 'Connecting to download stream...';
+                if (progressStatus) progressStatus.textContent = 'Fetching update from GitHub...';
                 ipcRenderer.send('start-download-update');
             }
         });
     }
 
-    // IPC Events from electron-updater in main.js
-    ipcRenderer.on('update-status', (_, { status }) => {
+    // IPC Events from electron-updater & git auto-updater in main.js
+    ipcRenderer.on('update-status', (_, { status, mode }) => {
         if (status === 'checking') {
-            console.log('[Updater] Checking for updates on GitHub...');
+            console.log('[Updater] Checking for updates on GitHub...', mode || '');
+            setCheckingState(true);
         }
     });
 
+    // Git update automatically fetched and pulled from GitHub main branch
+    ipcRenderer.on('git-update-applied', (_, info) => {
+        setCheckingState(false);
+        manualCheckTriggered = false;
+
+        if (updateBadgeDot) updateBadgeDot.style.display = 'block';
+        if (updateModalTitle) updateModalTitle.textContent = 'Updated from GitHub! 🚀';
+        if (updateModalVersionTag) updateModalVersionTag.textContent = info.commit || 'main';
+        if (updateNewVer) updateNewVer.textContent = info.commit || 'Updated';
+        if (updateNotesContent) {
+            updateNotesContent.innerHTML = `<strong>Latest GitHub commit:</strong><br>${escapeHtml(info.message || 'Latest improvements and fixes')}`;
+        }
+
+        if (updateProgressSection) updateProgressSection.style.display = 'flex';
+        if (progressStatus) progressStatus.textContent = 'Changes pulled successfully from GitHub!';
+        if (progressBarFill) {
+            progressBarFill.style.width = '100%';
+            progressBarFill.style.background = '#4ade80';
+        }
+        if (progressPercent) progressPercent.textContent = '100%';
+        if (progressSpeed) progressSpeed.textContent = `Commit: ${info.commit}`;
+
+        if (btnDownloadUpdate) {
+            btnDownloadUpdate.dataset.isReload = 'true';
+            btnDownloadUpdate.classList.add('btn-update-reloading');
+            btnDownloadUpdate.disabled = false;
+        }
+
+        let countdown = 3;
+        if (btnDownloadText) btnDownloadText.textContent = `Reloading in ${countdown}s (or click now)`;
+
+        if (updateModal) updateModal.style.display = 'flex';
+        showToast('🎉 Project updated from GitHub! Reloading...');
+
+        const cdTimer = setInterval(() => {
+            countdown -= 1;
+            if (countdown > 0) {
+                if (btnDownloadText) btnDownloadText.textContent = `Reloading in ${countdown}s (or click now)`;
+            } else {
+                clearInterval(cdTimer);
+                window.location.reload();
+            }
+        }, 1000);
+    });
+
     ipcRenderer.on('update-available', (_, info) => {
+        setCheckingState(false);
         manualCheckTriggered = false;
         isUpdateDownloaded = false;
 
         if (updateBadgeDot) updateBadgeDot.style.display = 'block';
 
-        if (updateModalTitle) updateModalTitle.textContent = 'Update Available';
+        if (updateModalTitle) updateModalTitle.textContent = 'Downloading Update... 🚀';
         if (updateModalVersionTag) updateModalVersionTag.textContent = `v${info.version}`;
         if (updateNewVer) updateNewVer.textContent = `v${info.version}`;
         if (updateNotesContent) {
@@ -3041,19 +3110,26 @@ function setupAutoUpdater() {
                 : 'A new version of Tracker is available on GitHub with enhancements, performance improvements, and bug fixes.';
         }
 
-        if (updateProgressSection) updateProgressSection.style.display = 'none';
-        if (btnDownloadText) btnDownloadText.textContent = 'Download Update';
-        if (btnDownloadUpdate) btnDownloadUpdate.disabled = false;
+        // Show progress bar immediately since autoDownload is active
+        if (updateProgressSection) updateProgressSection.style.display = 'flex';
+        if (progressStatus) progressStatus.textContent = 'Connecting & downloading from GitHub...';
+        if (btnDownloadText) btnDownloadText.textContent = 'Downloading...';
+        if (btnDownloadUpdate) {
+            delete btnDownloadUpdate.dataset.isReload;
+            btnDownloadUpdate.disabled = true;
+        }
 
         if (updateModal) updateModal.style.display = 'flex';
-        showToast(`Update v${info.version} is available!`);
+        showToast(`Update v${info.version} found! Downloading automatically...`);
     });
 
     ipcRenderer.on('update-not-available', (_, info) => {
+        setCheckingState(false);
         if (updateBadgeDot) updateBadgeDot.style.display = 'none';
         if (manualCheckTriggered) {
             const v = (info && info.version) ? info.version : currentAppVer;
-            showToast(`You are on the latest version (v${v})! 🎉`);
+            const extra = (info && info.commit) ? ` (${info.commit})` : '';
+            showToast(`Tracker is up to date (v${v}${extra})! 🎉`);
             manualCheckTriggered = false;
         }
     });
@@ -3080,6 +3156,7 @@ function setupAutoUpdater() {
     });
 
     ipcRenderer.on('update-downloaded', (_, info) => {
+        setCheckingState(false);
         isUpdateDownloaded = true;
         if (updateBadgeDot) updateBadgeDot.style.display = 'block';
 
@@ -3092,19 +3169,24 @@ function setupAutoUpdater() {
         if (progressPercent) progressPercent.textContent = '100%';
 
         if (btnDownloadText) btnDownloadText.textContent = 'Restart & Install Now';
-        if (btnDownloadUpdate) btnDownloadUpdate.disabled = false;
+        if (btnDownloadUpdate) {
+            delete btnDownloadUpdate.dataset.isReload;
+            btnDownloadUpdate.classList.add('btn-update-reloading');
+            btnDownloadUpdate.disabled = false;
+        }
 
         if (updateModal) updateModal.style.display = 'flex';
         showToast(`Update v${info.version} downloaded! Ready to install.`);
     });
 
     ipcRenderer.on('update-error', (_, { message }) => {
+        setCheckingState(false);
         console.warn('[Updater Error/Notice]', message);
         if (manualCheckTriggered) {
             if (message && message.includes('404')) {
                 showToast(`No releases published on GitHub yet (v${currentAppVer})`);
             } else if (message && message.includes('dev-app-update')) {
-                showToast('Running in dev mode. Updates enabled when packaged.');
+                showToast(`Tracker is on latest version (v${currentAppVer})`);
             } else {
                 showToast(`Update notice: ${message}`);
             }
