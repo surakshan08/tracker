@@ -77,6 +77,9 @@ let discordElapsedTimer = null;
 
 // Telemetry live values
 let currentSpeed = 0;
+let animatedSpeed = 0;
+let lastSpeedFrameTime = null;
+let speedAnimationActive = false;
 let currentLimit = 90;
 let currentGear = 'N';
 let currentCruise = 0;
@@ -117,6 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateDriverStats();
     updateCockpitDisplays();
     updateCompactHUD();
+    initSpeedAnimationLoop();
 
     // Start Telemetry Poller & VTC data loader
     startTelemetryPolling();
@@ -430,7 +434,15 @@ function setupTelemetryControls() {
     });
 
     document.getElementById('btnToggleUnit').addEventListener('click', () => {
+        const prevUnit = driverProfile.unit;
         driverProfile.unit = driverProfile.unit === 'kmh' ? 'mph' : 'kmh';
+        if (driverProfile.unit === 'mph' && prevUnit === 'kmh') {
+            currentSpeed = currentSpeed * 0.621371;
+            animatedSpeed = animatedSpeed * 0.621371;
+        } else if (driverProfile.unit === 'kmh' && prevUnit === 'mph') {
+            currentSpeed = currentSpeed / 0.621371;
+            animatedSpeed = animatedSpeed / 0.621371;
+        }
         saveProfile();
         updateSpeedometer();
     });
@@ -1125,14 +1137,14 @@ function calculateTripEstimation() {
 // =======================================================
 function renderActiveJob() {
     if (!activeJob) {
-        document.getElementById('jobOriginCity').textContent = 'No Active Job';
-        document.getElementById('jobOriginCompany').textContent = 'Click "New Job" to dispatch';
+        document.getElementById('jobOriginCity').textContent = 'No Job';
+        document.getElementById('jobOriginCompany').textContent = 'Waiting for in-game job...';
         document.getElementById('jobDestCity').textContent = '—';
         document.getElementById('jobDestCompany').textContent = '—';
-        document.getElementById('jobCargoName').textContent = 'No Cargo Assigned';
+        document.getElementById('jobCargoName').textContent = 'No Job';
         document.getElementById('jobCargoWeight').textContent = '0.0 t';
         document.getElementById('jobIncomeTag').textContent = '€0';
-        document.getElementById('jobStatusPill').textContent = 'IDLE';
+        document.getElementById('jobStatusPill').textContent = 'NO JOB';
         document.getElementById('jobStatusPill').className = 'job-status-pill idle';
         document.getElementById('routeProgressFill').style.width = '0%';
         document.getElementById('jobDrivenDist').textContent = '0 km driven';
@@ -1231,40 +1243,112 @@ function updateCockpitDisplays() {
     document.getElementById('jobRatingLabel').textContent = ratingLabel;
 }
 
-function updateSpeedometer() {
+function initSpeedAnimationLoop() {
+    if (speedAnimationActive) return;
+    speedAnimationActive = true;
+    lastSpeedFrameTime = performance.now();
+    requestAnimationFrame(updateSpeedAnimationLoop);
+}
+
+function updateSpeedAnimationLoop(timestamp) {
+    if (!lastSpeedFrameTime) lastSpeedFrameTime = timestamp;
+    const deltaMs = Math.min(100, timestamp - lastSpeedFrameTime);
+    lastSpeedFrameTime = timestamp;
+
     const isMph = driverProfile.unit === 'mph';
-    const rawSpeed = Math.abs(currentSpeed || 0);
-    const displaySpeed = Math.abs(isMph ? Math.round(rawSpeed * 0.621371) : rawSpeed);
+    const targetSpeed = Math.abs(currentSpeed || 0);
+
+    // Delta-time based smooth exponential interpolation for fluid, continuous rolling digits without skipping or jumping numbers
+    const dt = deltaMs / 1000;
+    const lerpFactor = 1 - Math.exp(-14 * dt);
+
+    if (Math.abs(targetSpeed - animatedSpeed) < 0.04) {
+        animatedSpeed = targetSpeed;
+    } else {
+        animatedSpeed += (targetSpeed - animatedSpeed) * lerpFactor;
+    }
+
+    const displaySpeed = Math.round(animatedSpeed);
     const displayLimit = Math.abs(isMph ? Math.round(currentLimit * 0.621371) : currentLimit);
     const unitLabel = isMph ? 'MPH' : 'KM/H';
 
-    document.getElementById('telemSpeed').textContent = displaySpeed;
-    document.getElementById('telemUnit').textContent = unitLabel;
-    document.getElementById('telemLimitBadge').textContent = `LIMIT ${displayLimit}`;
+    // 1. Cockpit HUD Speedometer Box
+    const speedEl = document.getElementById('telemSpeed');
+    if (speedEl && speedEl.textContent !== String(displaySpeed)) {
+        speedEl.textContent = displaySpeed;
+    }
 
-    // Overspeed check
-    const isOverspeed = displaySpeed > (displayLimit + 3);
-    const badgeEl = document.getElementById('telemLimitBadge');
-    const diffEl = document.getElementById('telemSpeedDiff');
+    const unitEl = document.getElementById('telemUnit');
+    if (unitEl && unitEl.textContent !== unitLabel) {
+        unitEl.textContent = unitLabel;
+    }
 
-    if (isOverspeed) {
-        badgeEl.classList.add('overspeed');
-        diffEl.textContent = `+${displaySpeed - displayLimit} ${unitLabel.toLowerCase()}`;
-        diffEl.style.color = 'var(--red)';
-    } else {
-        badgeEl.classList.remove('overspeed');
-        if (!telemetryConnected && !isDemoMode) {
-            diffEl.textContent = `0 ${unitLabel.toLowerCase()}`;
-            diffEl.style.color = 'var(--text-muted)';
-        } else if (displaySpeed === 0) {
-            diffEl.textContent = `0 ${unitLabel.toLowerCase()}`;
-            diffEl.style.color = 'var(--text-muted)';
-        } else {
-            const diff = displaySpeed - displayLimit;
-            diffEl.textContent = `${diff <= 0 ? diff : '+' + diff} ${unitLabel.toLowerCase()}`;
-            diffEl.style.color = 'var(--text-muted)';
+    const limitBadge = document.getElementById('telemLimitBadge');
+    if (limitBadge) {
+        const limitText = `LIMIT ${displayLimit}`;
+        if (limitBadge.textContent !== limitText) {
+            limitBadge.textContent = limitText;
         }
     }
+
+    const diffEl = document.getElementById('telemSpeedDiff');
+    if (diffEl) {
+        const isOverspeed = displaySpeed > (displayLimit + 3);
+        if (isOverspeed) {
+            if (limitBadge) limitBadge.classList.add('overspeed');
+            diffEl.textContent = `+${displaySpeed - displayLimit} ${unitLabel.toLowerCase()}`;
+            diffEl.style.color = 'var(--red)';
+        } else {
+            if (limitBadge) limitBadge.classList.remove('overspeed');
+            if (!telemetryConnected && !isDemoMode) {
+                diffEl.textContent = `0 ${unitLabel.toLowerCase()}`;
+                diffEl.style.color = 'var(--text-muted)';
+            } else if (displaySpeed === 0) {
+                diffEl.textContent = `0 ${unitLabel.toLowerCase()}`;
+                diffEl.style.color = 'var(--text-muted)';
+            } else {
+                const diff = displaySpeed - displayLimit;
+                diffEl.textContent = `${diff <= 0 ? diff : '+' + diff} ${unitLabel.toLowerCase()}`;
+                diffEl.style.color = 'var(--text-muted)';
+            }
+        }
+    }
+
+    // 2. Compact HUD Speedometer
+    const compactSpeedEl = document.getElementById('compactSpeed');
+    if (compactSpeedEl && compactSpeedEl.textContent !== String(displaySpeed)) {
+        compactSpeedEl.textContent = displaySpeed;
+    }
+
+    const compactSpeedUnitEl = document.getElementById('compactSpeedUnit');
+    if (compactSpeedUnitEl) {
+        const compactUnit = isMph ? 'mph' : 'km/h';
+        if (compactSpeedUnitEl.textContent !== compactUnit) {
+            compactSpeedUnitEl.textContent = compactUnit;
+        }
+    }
+
+    const compactLimitEl = document.getElementById('compactLimit');
+    if (compactLimitEl) {
+        const limitText = `LIMIT ${displayLimit}`;
+        if (compactLimitEl.textContent !== limitText) {
+            compactLimitEl.textContent = limitText;
+        }
+        compactLimitEl.classList.toggle('overspeed', displaySpeed > displayLimit + 3);
+    }
+
+    requestAnimationFrame(updateSpeedAnimationLoop);
+}
+
+function updateSpeedometer() {
+    const isMph = driverProfile.unit === 'mph';
+    const displayLimit = Math.abs(isMph ? Math.round(currentLimit * 0.621371) : currentLimit);
+    const unitLabel = isMph ? 'MPH' : 'KM/H';
+
+    const unitEl = document.getElementById('telemUnit');
+    if (unitEl) unitEl.textContent = unitLabel;
+    const limitEl = document.getElementById('telemLimitBadge');
+    if (limitEl) limitEl.textContent = `LIMIT ${displayLimit}`;
 }
 
 function setDamageColorClass(textEl, barEl, val) {
@@ -1287,15 +1371,6 @@ function setDamageColorClass(textEl, barEl, val) {
 function updateCompactHUD() {
     if (!document.body.classList.contains('compact')) return;
 
-    const isMph = driverProfile.unit === 'mph';
-    const displaySpeed = isMph ? Math.round(currentSpeed * 0.621371) : currentSpeed;
-    const displayLimit = isMph ? Math.round(currentLimit * 0.621371) : currentLimit;
-
-    document.getElementById('compactSpeed').textContent = displaySpeed;
-    document.getElementById('compactSpeedUnit').textContent = isMph ? 'mph' : 'km/h';
-    document.getElementById('compactLimit').textContent = `LIMIT ${displayLimit}`;
-    document.getElementById('compactLimit').classList.toggle('overspeed', displaySpeed > displayLimit + 3);
-
     const est = calculateTripEstimation();
 
     if (activeJob) {
@@ -1313,14 +1388,14 @@ function updateCompactHUD() {
             compactEtaEl.textContent = `🏁 ETA: ${est.etaFormatted}`;
         }
     } else {
-        document.getElementById('compactRoute').textContent = 'No Active Job';
-        document.getElementById('compactCargo').textContent = 'Standby';
+        document.getElementById('compactRoute').textContent = 'No Job';
+        document.getElementById('compactCargo').textContent = 'No Job';
         document.getElementById('compactDistRem').textContent = '0 km';
         document.getElementById('compactProgressFill').style.width = '0%';
 
         const compactEtaEl = document.getElementById('compactEta');
         if (compactEtaEl) {
-            compactEtaEl.textContent = '🏁 Standby';
+            compactEtaEl.textContent = '🏁 No Job';
         }
     }
 
@@ -2813,7 +2888,7 @@ function buildDiscordActivity() {
         const driver = driverProfile.callsign || 'Driver';
         const vtcName = (driverProfile.vtc && driverProfile.vtc.name) ? driverProfile.vtc.name : null;
         details = vtcName ? `🏢 ${vtcName}` : `🚚 Tracker — ${game}`;
-        state = `Driver: ${driver} • No Active Job`;
+        state = `Driver: ${driver} • No Job`;
     }
 
     const activity = {
@@ -2874,7 +2949,7 @@ function updateDiscordPreview() {
         } else if (telemetryConnected) {
             detail1El.textContent = `🎮 Free Driving in ${gameFullName}`;
         } else {
-            detail1El.textContent = `🚚 No Active Job (${game})`;
+            detail1El.textContent = `🚚 No Job (${game})`;
         }
     }
 
