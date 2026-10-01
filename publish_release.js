@@ -57,19 +57,20 @@ if (filesToUpload.length === 0) {
 const releaseNotes = `## 🚛 Tracker v${version} — Release Notes
 
 ### 🌟 New Features & Enhancements in v${version}:
-- 🇺🇸 **Full American Truck Simulator (ATS) Job Tracking**:
-  - Full dual-game telemetry streaming support across ETS2 and ATS on port \`3737\` (native MMF bridge) and port \`25555\` (\`/api/ats/telemetry\` and \`/api/ets2/telemetry\`).
-  - Automatic game identification, vehicle recognition (Peterbilt, Kenworth, Freightliner, Mack, International, Volvo VNL), and real-time driving status.
-- 🚚 **Dynamic ATS & ETS2 Route Dispatcher**:
-  - Expanded library of authentic American Truck Simulator routes (Los Angeles, San Francisco, Seattle, Salt Lake City, Denver, Dallas, Houston, Portland, San Diego, Phoenix, Albuquerque, Las Vegas, Reno, El Paso, etc.).
-  - Real-time preset switching when toggling between ETS2 and ATS in the Dispatch modal.
-- 📋 **Logbook Game Filter & Multi-Currency Support**:
-  - Quick filter pills (**All Deliveries**, **🇪🇺 ETS2**, **🇺🇸 ATS**) in the Logbook tab for instantaneous filtering and totals calculation.
-  - Automatic currency formatting (**\`$\` for ATS**, **\`€\` for ETS2**) across HUD active cards, logbook, completion modals, Discord receipts, and CSV exports.
-- 💬 **Discord Rich Presence for ATS**:
-  - ATS activity presence with unit-aware speed and distance display (\`mi\` vs \`km\`).
-- 🚀 **Smooth 60+ FPS Interpolated Cockpit Gauges**:
-  - Fluid delta-time continuous speedometer and tachometer smoothing.
+- 🚚 **Live Dispatched Job Tracking for ATS & ETS2**:
+  - Full support for tracking manually dispatched jobs or quick presets with live truck odometer telemetry.
+  - Automatic distance progression via real-time odometer delta tracking and speed integration while driving in ATS or ETS2.
+  - Automatic delivery completion, VTC score calculation, and formatted Discord receipts upon reaching target distance.
+- 🏙️ **Dynamic Autocomplete & Datalists for ATS & ETS2**:
+  - Smart autocomplete for origin/destination cities, companies (Wallbert, Charged, Coastline Mining, Bitumen, etc.), and authentic cargo types.
+  - Automatic context switching when toggling between ATS and ETS2.
+- 🇺🇸 **Dual-Game Telemetry & Native MMF Bridge**:
+  - Real-time detection across ATS and ETS2 on native high-speed bridge (\`port 3737\`) and SCS REST (\`port 25555\`).
+  - Truck brand/model detection (Peterbilt, Kenworth, Freightliner, Mack, International, Volvo, Scania).
+- 📋 **Logbook Multi-Game Filters & Currency Formatting**:
+  - Filter delivery records by **All**, **🇪🇺 ETS2**, or **🇺🇸 ATS** with dynamic totals and currency formatting (\`$\` for ATS, \`€\` for ETS2).
+- 💬 **Discord Rich Presence & 60+ FPS Cockpit Gauges**:
+  - Live Discord Rich Presence showing active game, route, cargo weight, speed, and elapsed time.
 
 ---
 

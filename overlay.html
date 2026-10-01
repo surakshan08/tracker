@@ -964,7 +964,7 @@
             <div class="footer-right">
                 <span class="footer-edition">Tracker</span>
                 <span class="footer-sep">•</span>
-                <span class="footer-version" id="footerVersion" title="Click to check for updates" style="cursor: pointer;">v1.1.4</span>
+                <span class="footer-version" id="footerVersion" title="Click to check for updates" style="cursor: pointer;">v1.1.5</span>
                 <span class="resize-handle" id="resizeHandle" title="Drag to resize / Double-click to reset (450x720)">
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M22 22H20V20H22V22ZM22 18H20V16H22V18ZM18 22H16V20H18V22ZM22 14H20V12H22V14ZM18 18H16V16H18V18ZM14 22H12V20H14V22Z"/>
@@ -1003,23 +1003,23 @@
                     <div class="form-grid">
                         <div class="form-group">
                             <label>Origin City</label>
-                            <input type="text" id="inputOriginCity" value="Rotterdam">
+                            <input type="text" id="inputOriginCity" list="dispatchCitiesList" value="Rotterdam" placeholder="e.g. Los Angeles">
                         </div>
                         <div class="form-group">
                             <label>Origin Company</label>
-                            <input type="text" id="inputOriginCompany" value="EuroGoodies">
+                            <input type="text" id="inputOriginCompany" list="dispatchCompaniesList" value="EuroGoodies" placeholder="e.g. Coastline Mining">
                         </div>
                         <div class="form-group">
                             <label>Destination City</label>
-                            <input type="text" id="inputDestCity" value="Berlin">
+                            <input type="text" id="inputDestCity" list="dispatchCitiesList" value="Berlin" placeholder="e.g. Las Vegas">
                         </div>
                         <div class="form-group">
                             <label>Destination Company</label>
-                            <input type="text" id="inputDestCompany" value="LKW Logistik">
+                            <input type="text" id="inputDestCompany" list="dispatchCompaniesList" value="LKW Logistik" placeholder="e.g. Charged">
                         </div>
                         <div class="form-group">
                             <label>Cargo Name</label>
-                            <input type="text" id="inputCargo" value="Medical Supplies">
+                            <input type="text" id="inputCargo" list="dispatchCargoList" value="Medical Supplies" placeholder="e.g. Luxury Beverages">
                         </div>
                         <div class="form-group">
                             <label>Weight (tonnes)</label>
@@ -1030,10 +1030,15 @@
                             <input type="number" id="inputDistance" value="850">
                         </div>
                         <div class="form-group">
-                            <label>Expected Income (€ / $)</label>
+                            <label id="inputIncomeLabel">Expected Income (€ / $)</label>
                             <input type="number" id="inputIncome" value="38500">
                         </div>
                     </div>
+
+                    <!-- Autocomplete Datalists -->
+                    <datalist id="dispatchCitiesList"></datalist>
+                    <datalist id="dispatchCompaniesList"></datalist>
+                    <datalist id="dispatchCargoList"></datalist>
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-secondary" id="btnCancelDispatch">Cancel</button>

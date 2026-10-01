@@ -119,6 +119,57 @@ const JOB_PRESETS = [
     { originCity: 'El Paso', originCompany: 'Vitas Power', destCity: 'San Antonio', destCompany: 'Eddy\'s', cargo: 'Aviation Fuel & Additives', weight: 22.0, distance: 880, income: 46200, game: 'ATS' }
 ];
 
+// Autocomplete Databases for Dynamic Route Dispatcher (ATS & ETS2)
+const ATS_CITIES = [
+    'Los Angeles', 'Las Vegas', 'San Francisco', 'Seattle', 'Phoenix',
+    'Denver', 'Dallas', 'Houston', 'Salt Lake City', 'Portland',
+    'Albuquerque', 'San Diego', 'Reno', 'El Paso', 'San Antonio',
+    'Austin', 'Boise', 'Spokane', 'Tucson', 'Sacramento',
+    'Fresno', 'Bakersfield', 'Cheyenne', 'Santa Fe', 'Flagstaff',
+    'Casper', 'Billings', 'Helena', 'Olympia', 'Salem',
+    'Tacoma', 'Eugene', 'Redding', 'Stockton', 'Carson City'
+];
+
+const ATS_COMPANIES = [
+    'Wallbert', 'Charged', 'Coastline Mining', 'Bitumen', 'Plaster & Sons',
+    'HMS Machinery', 'Bushnell Farms', 'Voltison Motors', 'Deepgrove', 'Vitas Power',
+    'Eddy\'s', 'Darchelle Uzau', 'SellPlan', 'Port of San Diego', 'Tideway Logistics',
+    'Oakland Shippers', 'Gallon Oil', 'Home Store', 'Sunshine Crops', 'Chemso'
+];
+
+const ATS_CARGOS = [
+    'Luxury Beverages', 'Fresh Farm Produce', 'Electronic Tech Components',
+    'Heavy Construction Excavator', 'Industrial Generator Turbines',
+    'Processed Timber & Lumber', 'Medical Pharmaceuticals', 'Aviation Fuel & Additives',
+    'Packaged Food', 'Raw Milk', 'Heavy Bulldozer', 'Wind Turbine Nacelle',
+    'Refrigerated Goods', 'Auto Parts & Engines', 'Machinery Parts', 'Concrete Tubes',
+    'Pressure Tank', 'Grain & Wheat', 'Frozen Meat', 'Silica Sand'
+];
+
+const ETS2_CITIES = [
+    'Rotterdam', 'Berlin', 'Paris', 'Milano', 'Calais',
+    'Duisburg', 'Hamburg', 'Kraków', 'Amsterdam', 'Prague',
+    'London', 'Frankfurt', 'Stockholm', 'Munich', 'Warsaw',
+    'Geneva', 'Brussels', 'Vienna', 'Rome', 'Madrid',
+    'Barcelona', 'Lyon', 'Zurich', 'Oslo', 'Helsinki',
+    'Copenhagen', 'Budapest', 'Bratislava', 'Luxembourg', 'Manchester'
+];
+
+const ETS2_COMPANIES = [
+    'EuroGoodies', 'LKW Logistik', 'Tradeaux', 'Transinet', 'Sanbuilders',
+    'BCP', 'EuroAcres', 'POSPED', 'Marina', 'ITCC',
+    'Stokes', 'Trameri', 'Nordic Crown', 'Tree-ET', 'Kaarfor',
+    'WGCC', 'NBFC', 'FCP', 'Scout', 'Stein Bruch'
+];
+
+const ETS2_CARGOS = [
+    'Electronics Components', 'Heavy Industrial Machinery', 'Chemical Contraband / Hazmat',
+    'Medical Vaccines & Supplies', 'Auto Parts & Engines', 'Aircraft Components',
+    'Timber & Prefab Housing', 'High-Tech Server Racks', 'Frozen Food', 'Fruits & Vegetables',
+    'Industrial Machinery', 'Steel Pipes', 'Heavy Excavator', 'Dangerous Chemicals',
+    'Precast Concrete Walls', 'Dairy Products', 'Motorcycle Parts'
+];
+
 // =======================================================
 //  INITIALIZATION
 // =======================================================
@@ -1014,6 +1065,54 @@ function handleLiveTelemetryData(data) {
             saveActiveJob();
             updateDiscordPresence();
         }
+    } else if (isConnected && activeJob && !activeJob.isLiveGameJob && !hasJobInGame) {
+        // Dispatched Job (Manual / Preset) live driving progress tracking for ATS & ETS2
+        const now = Date.now();
+        let distanceIncrement = 0;
+
+        let odometerKm = 0;
+        if (data.truck && data.truck.odometer !== undefined) {
+            odometerKm = parseFloat(data.truck.odometer) || 0;
+        } else if (data.TruckValues?.CurrentValues?.DashboardValues?.Odometer !== undefined) {
+            odometerKm = parseFloat(data.TruckValues.CurrentValues.DashboardValues.Odometer) || 0;
+        }
+
+        if (odometerKm > 0) {
+            if (!activeJob.lastOdometer || activeJob.lastOdometer <= 0) {
+                activeJob.lastOdometer = odometerKm;
+            } else {
+                const deltaOdo = odometerKm - activeJob.lastOdometer;
+                if (deltaOdo > 0 && deltaOdo < 30) {
+                    distanceIncrement = deltaOdo;
+                }
+                activeJob.lastOdometer = odometerKm;
+            }
+        }
+
+        // Time-delta speed fallback if odometer doesn't change during live driving
+        if (distanceIncrement === 0 && absKph > 1 && !isPaused) {
+            if (activeJob.lastPollTime) {
+                const dtHours = Math.min(0.005, Math.max(0, (now - activeJob.lastPollTime) / 3600000));
+                distanceIncrement = absKph * dtHours;
+            }
+        }
+        activeJob.lastPollTime = now;
+
+        if (distanceIncrement > 0) {
+            activeJob.drivenDistance = Math.round(((activeJob.drivenDistance || 0) + distanceIncrement) * 100) / 100;
+            activeJob.status = 'IN TRANSIT';
+
+            if (activeJob.distance > 0 && activeJob.drivenDistance >= activeJob.distance) {
+                activeJob.drivenDistance = activeJob.distance;
+                const dispatchedOrigin = activeJob.originCity;
+                const dispatchedDest = activeJob.destCity;
+                const dispatchedGame = activeJob.game || normGame;
+                finishActiveJob();
+                showToast(`🎉 Dispatched Job Delivered: ${dispatchedOrigin} ➔ ${dispatchedDest} (${dispatchedGame})!`);
+            } else {
+                saveActiveJob();
+            }
+        }
     }
 
     updateCockpitDisplays();
@@ -1563,6 +1662,40 @@ function setupModals() {
     const optETS2 = document.getElementById('optGameETS2');
     const optATS = document.getElementById('optGameATS');
 
+    function populateDispatchDatalists(game) {
+        const isATS = game === 'ATS';
+        const cities = isATS ? ATS_CITIES : ETS2_CITIES;
+        const companies = isATS ? ATS_COMPANIES : ETS2_COMPANIES;
+        const cargos = isATS ? ATS_CARGOS : ETS2_CARGOS;
+
+        const dlCities = document.getElementById('dispatchCitiesList');
+        const dlCompanies = document.getElementById('dispatchCompaniesList');
+        const dlCargo = document.getElementById('dispatchCargoList');
+
+        if (dlCities) {
+            dlCities.innerHTML = cities.map(c => `<option value="${escapeHtml(c)}">`).join('');
+        }
+        if (dlCompanies) {
+            dlCompanies.innerHTML = companies.map(c => `<option value="${escapeHtml(c)}">`).join('');
+        }
+        if (dlCargo) {
+            dlCargo.innerHTML = cargos.map(c => `<option value="${escapeHtml(c)}">`).join('');
+        }
+
+        // Update dynamic input placeholders
+        const inputOriginCity = document.getElementById('inputOriginCity');
+        const inputOriginCompany = document.getElementById('inputOriginCompany');
+        const inputDestCity = document.getElementById('inputDestCity');
+        const inputDestCompany = document.getElementById('inputDestCompany');
+        const inputCargo = document.getElementById('inputCargo');
+
+        if (inputOriginCity) inputOriginCity.placeholder = isATS ? 'e.g. Los Angeles' : 'e.g. Rotterdam';
+        if (inputOriginCompany) inputOriginCompany.placeholder = isATS ? 'e.g. Coastline Mining' : 'e.g. EuroGoodies';
+        if (inputDestCity) inputDestCity.placeholder = isATS ? 'e.g. Las Vegas' : 'e.g. Berlin';
+        if (inputDestCompany) inputDestCompany.placeholder = isATS ? 'e.g. Charged' : 'e.g. LKW Logistik';
+        if (inputCargo) inputCargo.placeholder = isATS ? 'e.g. Luxury Beverages' : 'e.g. Electronics Components';
+    }
+
     function renderDispatchPresets(game) {
         const grid = document.getElementById('presetsGrid');
         if (!grid) return;
@@ -1591,6 +1724,7 @@ function setupModals() {
         if (optETS2) optETS2.classList.toggle('active', game === 'ETS2');
         if (optATS) optATS.classList.toggle('active', game === 'ATS');
 
+        populateDispatchDatalists(game);
         renderDispatchPresets(game);
 
         // Filter and apply first matching preset for the chosen game
