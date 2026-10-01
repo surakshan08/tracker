@@ -57,25 +57,19 @@ if (filesToUpload.length === 0) {
 const releaseNotes = `## 🚛 Tracker v${version} — Release Notes
 
 ### 🌟 New Features & Enhancements in v${version}:
-- 🚀 **Fluent Speed Digits & Smooth Interpolation**:
-  - Speed numbers now transition continuously and fluently in 60+ FPS via delta-time exponential smoothing with tabular numeral alignment — eliminating all digit jumps and layout jitter.
-- 📦 **Clean "No Job" Status**:
-  - Displays a clean "No Job" indicator across Cockpit Header, Compact HUD, and Discord Rich Presence whenever the driver is idle or free roaming.
-- 🎮 **Real-time ETS2 & ATS Game Detection**:
-  - Automatically identifies whether **Euro Truck Simulator 2** (\`eurotrucks2.exe\`) or **American Truck Simulator** (\`amtrucks.exe\`) is running.
-  - Tracker stays in clean **Standby** mode until the game launches, then automatically activates live tracking.
-- ⚡ **Auto-Show on Launch & Auto-Hide on Exit**:
-  - Option to bring Tracker to focus automatically when the game launches.
-  - Option to minimize Tracker to the system tray when the game exits.
-- 🔄 **GitHub 1-Click Auto-Updates**:
-  - Automatically fetches and updates from GitHub releases or repository in real time.
-  - Live progress bar, download speed indicator, and 1-click install.
-- 📊 **Complete In-Game Telemetry Cluster**:
-  - Live Speed, Cruise Control, Gear, RPM, Fuel Range, Engine Temp, Damage, and Navigation ETA.
-- 🏢 **TruckersMP Drivers Hub & VTC Integration**:
-  - Dynamic profile and VTC synchronization with member counts and event details.
-- 💬 **Discord Rich Presence**:
-  - Displays live truck model, city-to-city cargo route, and delivery status directly on Discord.
+- 🇺🇸 **Full American Truck Simulator (ATS) Job Tracking**:
+  - Full dual-game telemetry streaming support across ETS2 and ATS on port \`3737\` (native MMF bridge) and port \`25555\` (\`/api/ats/telemetry\` and \`/api/ets2/telemetry\`).
+  - Automatic game identification, vehicle recognition (Peterbilt, Kenworth, Freightliner, Mack, International, Volvo VNL), and real-time driving status.
+- 🚚 **Dynamic ATS & ETS2 Route Dispatcher**:
+  - Expanded library of authentic American Truck Simulator routes (Los Angeles, San Francisco, Seattle, Salt Lake City, Denver, Dallas, Houston, Portland, San Diego, Phoenix, Albuquerque, Las Vegas, Reno, El Paso, etc.).
+  - Real-time preset switching when toggling between ETS2 and ATS in the Dispatch modal.
+- 📋 **Logbook Game Filter & Multi-Currency Support**:
+  - Quick filter pills (**All Deliveries**, **🇪🇺 ETS2**, **🇺🇸 ATS**) in the Logbook tab for instantaneous filtering and totals calculation.
+  - Automatic currency formatting (**\`$\` for ATS**, **\`€\` for ETS2**) across HUD active cards, logbook, completion modals, Discord receipts, and CSV exports.
+- 💬 **Discord Rich Presence for ATS**:
+  - ATS activity presence with unit-aware speed and distance display (\`mi\` vs \`km\`).
+- 🚀 **Smooth 60+ FPS Interpolated Cockpit Gauges**:
+  - Fluid delta-time continuous speedometer and tachometer smoothing.
 
 ---
 
