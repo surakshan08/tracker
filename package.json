@@ -27,7 +27,7 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "Sukku",
+        "owner": "surakshan08",
         "repo": "tracker"
       }
     ],
