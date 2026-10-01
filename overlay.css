@@ -324,6 +324,35 @@ body.compact .compact-strip {
     color: #fff;
 }
 
+.tb-update {
+    position: relative;
+}
+
+.update-badge-dot {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+    animation: pulseDot 1.5s infinite ease-in-out;
+}
+
+.spin-update svg {
+    animation: spinRotate 0.8s linear infinite;
+}
+
+@keyframes spinRotate {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
 /* =======================================================
    COMPACT HUD STRIP
    ======================================================= */
