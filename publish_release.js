@@ -56,7 +56,11 @@ if (filesToUpload.length === 0) {
 // 3. Compose Release Notes
 const releaseNotes = `## 🚛 Tracker v${version} — Release Notes
 
-### 🌟 New Features & Enhancements:
+### 🌟 New Features & Enhancements in v${version}:
+- 🚀 **Fluent Speed Digits & Smooth Interpolation**:
+  - Speed numbers now transition continuously and fluently in 60+ FPS via delta-time exponential smoothing with tabular numeral alignment — eliminating all digit jumps and layout jitter.
+- 📦 **Clean "No Job" Status**:
+  - Displays a clean "No Job" indicator across Cockpit Header, Compact HUD, and Discord Rich Presence whenever the driver is idle or free roaming.
 - 🎮 **Real-time ETS2 & ATS Game Detection**:
   - Automatically identifies whether **Euro Truck Simulator 2** (\`eurotrucks2.exe\`) or **American Truck Simulator** (\`amtrucks.exe\`) is running.
   - Tracker stays in clean **Standby** mode until the game launches, then automatically activates live tracking.
