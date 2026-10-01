@@ -84,6 +84,7 @@ let currentLimit = 90;
 let currentGear = 'N';
 let currentCruise = 0;
 let currentRpm = 0;
+let animatedRpm = 0;
 let currentFuel = 100; // percentage
 let currentTruckDmg = 0.0;
 let currentCargoDmg = 0.0;
@@ -726,8 +727,9 @@ function handleLiveTelemetryData(data) {
     let speedLimitKph = 90;
     let speedLimitMphVal = 55;
     let gearVal = 0;
-    let rpmVal = 1000;
+    let rpmVal = 0;
     let cruiseSpeed = 0;
+    let isEngineOn = false;
     let fuelPercent = 75;
     let truckDmgVal = 0.0;
     let cargoDmgVal = 0.0;
@@ -771,9 +773,11 @@ function handleLiveTelemetryData(data) {
         speedMphVal = dv.Speed?.Mph || 0;
         speedLimitKph = nv.SpeedLimit?.Kph || 90;
         speedLimitMphVal = nv.SpeedLimit?.Mph || 55;
+        
+        isEngineOn = cv.EngineEnabled !== undefined ? Boolean(cv.EngineEnabled) : ((dv.RPM || 0) > 80);
         gearVal = dv.GearDashboards || 0;
-        rpmVal = dv.RPM || 1000;
-        cruiseSpeed = dv.CruiseControl ? (dv.CruiseControlSpeed?.Kph || 0) : 0;
+        rpmVal = isEngineOn ? Math.max(0, dv.RPM || 0) : 0;
+        cruiseSpeed = (isEngineOn && dv.CruiseControl) ? (dv.CruiseControlSpeed?.Kph || 0) : 0;
 
         const dest = jv.CityDestination ? jv.CityDestination.trim() : '';
         const src = jv.CitySource ? jv.CitySource.trim() : '';
@@ -806,9 +810,11 @@ function handleLiveTelemetryData(data) {
         speedMphVal = data.speedMph || 0;
         speedLimitKph = data.speedLimit || 90;
         speedLimitMphVal = data.speedLimitMph || 55;
+        
+        isEngineOn = data.engineOn !== undefined ? Boolean(data.engineOn) : ((data.rpm || 0) > 80);
         gearVal = data.gear || 0;
-        rpmVal = data.rpm || 1000;
-        cruiseSpeed = data.cruiseControl || 0;
+        rpmVal = isEngineOn ? Math.max(0, data.rpm || 0) : 0;
+        cruiseSpeed = isEngineOn ? (data.cruiseControl || 0) : 0;
         fuelPercent = data.fuelPct || 75;
         truckDmgVal = parseFloat(data.truckDamage || 0.0);
         cargoDmgVal = parseFloat(data.cargoDamage || 0.0);
@@ -835,9 +841,11 @@ function handleLiveTelemetryData(data) {
         speedMphVal = speedKph * 0.621371;
         speedLimitKph = nav.speedLimit || 90;
         speedLimitMphVal = speedLimitKph * 0.621371;
+        
+        isEngineOn = truck.engineOn !== undefined ? Boolean(truck.engineOn) : ((truck.engineRpm || 0) > 80);
         gearVal = truck.gear || 0;
-        rpmVal = truck.engineRpm || 1000;
-        cruiseSpeed = truck.cruiseControlSpeed || 0;
+        rpmVal = isEngineOn ? Math.max(0, truck.engineRpm || 0) : 0;
+        cruiseSpeed = isEngineOn ? (truck.cruiseControlSpeed || 0) : 0;
         fuelPercent = truck.fuelCapacity > 0 ? ((truck.fuel / truck.fuelCapacity) * 100) : 75;
         truckDmgVal = Math.min(100, ((truck.wearEngine || 0) + (truck.wearTransmission || 0) + (truck.wearChassis || 0)) * 100);
         cargoDmgVal = Math.min(100, (trailer.wear || 0) * 100);
@@ -1202,13 +1210,21 @@ function updateCockpitDisplays() {
     updateSpeedometer();
 
     // Dynamics
-    document.getElementById('telemGear').textContent = currentGear;
-    document.getElementById('telemCruise').textContent = currentCruise > 0 ? currentCruise : 'OFF';
-    document.getElementById('telemRpm').textContent = currentRpm.toLocaleString();
+    const gearEl = document.getElementById('telemGear');
+    if (gearEl) gearEl.textContent = currentGear || 'N';
 
-    const rpmMax = 2500;
-    const rpmPct = Math.min(100, Math.round((currentRpm / rpmMax) * 100));
-    document.getElementById('telemRpmBar').style.width = `${rpmPct}%`;
+    const cruiseEl = document.getElementById('telemCruise');
+    if (cruiseEl) {
+        if (currentCruise > 0) {
+            cruiseEl.textContent = currentCruise;
+            cruiseEl.classList.add('active');
+            cruiseEl.classList.remove('off');
+        } else {
+            cruiseEl.textContent = 'OFF';
+            cruiseEl.classList.remove('active');
+            cruiseEl.classList.add('off');
+        }
+    }
 
     // Damage Displays
     const truckDmgEl = document.getElementById('telemDmgTruck');
@@ -1314,7 +1330,33 @@ function updateSpeedAnimationLoop(timestamp) {
         }
     }
 
-    // 2. Compact HUD Speedometer
+    // 2. RPM Dynamics & Tachometer Smoothing
+    const targetRpm = Math.max(0, currentRpm || 0);
+    const rpmLerp = 1 - Math.exp(-12 * dt);
+    if (Math.abs(targetRpm - animatedRpm) < 2) {
+        animatedRpm = targetRpm;
+    } else {
+        animatedRpm += (targetRpm - animatedRpm) * rpmLerp;
+    }
+    const displayRpm = Math.round(animatedRpm);
+
+    const rpmEl = document.getElementById('telemRpm');
+    if (rpmEl) {
+        if (displayRpm <= 30) {
+            rpmEl.textContent = '0';
+            rpmEl.classList.add('off');
+        } else {
+            rpmEl.textContent = displayRpm.toLocaleString();
+            rpmEl.classList.remove('off');
+        }
+    }
+    const rpmBar = document.getElementById('telemRpmBar');
+    if (rpmBar) {
+        const rpmPct = displayRpm <= 30 ? 0 : Math.min(100, Math.max(0, Math.round((displayRpm / 2500) * 100)));
+        rpmBar.style.width = `${rpmPct}%`;
+    }
+
+    // 3. Compact HUD Speedometer
     const compactSpeedEl = document.getElementById('compactSpeed');
     if (compactSpeedEl && compactSpeedEl.textContent !== String(displaySpeed)) {
         compactSpeedEl.textContent = displaySpeed;

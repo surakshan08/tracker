@@ -1086,10 +1086,22 @@ body.compact .compact-strip {
     font-weight: 800;
     color: #fff;
     margin-top: 2px;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+    transition: color 0.2s ease;
 }
 
 .dyn-val.cc-val {
+    color: var(--text-muted);
+}
+
+.dyn-val.cc-val.active {
     color: var(--green);
+    text-shadow: 0 0 8px var(--green-glow);
+}
+
+.dyn-val.off {
+    color: var(--text-muted);
 }
 
 .rpm-bar-wrap {
