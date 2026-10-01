@@ -445,6 +445,13 @@
                     </div>
                 </div>
 
+                <!-- Game Filter Tabs -->
+                <div class="logbook-game-filters" id="lbGameFilterGroup">
+                    <button type="button" class="lb-filter-btn active" data-game="ALL">All Deliveries</button>
+                    <button type="button" class="lb-filter-btn ets2" data-game="ETS2">🇪🇺 ETS2</button>
+                    <button type="button" class="lb-filter-btn ats" data-game="ATS">🇺🇸 ATS</button>
+                </div>
+
                 <!-- Completed Deliveries List -->
                 <div class="logbook-list" id="logbookList">
                     <!-- Populated dynamically by overlay.js -->
@@ -957,7 +964,7 @@
             <div class="footer-right">
                 <span class="footer-edition">Tracker</span>
                 <span class="footer-sep">•</span>
-                <span class="footer-version" id="footerVersion" title="Click to check for updates" style="cursor: pointer;">v1.1.1</span>
+                <span class="footer-version" id="footerVersion" title="Click to check for updates" style="cursor: pointer;">v1.1.4</span>
                 <span class="resize-handle" id="resizeHandle" title="Drag to resize / Double-click to reset (450x720)">
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M22 22H20V20H22V22ZM22 18H20V16H22V18ZM18 22H16V20H18V22ZM22 14H20V12H22V14ZM18 18H16V16H18V18ZM14 22H12V20H14V22Z"/>
@@ -976,25 +983,24 @@
                     <button class="modal-close-btn" id="btnCloseDispatchModal">&times;</button>
                 </div>
                 <div class="modal-body">
-                    <!-- Quick Presets -->
-                    <div class="modal-presets-label">QUICK PRESETS (POPULAR ROUTES)</div>
-                    <div class="presets-grid">
-                        <button class="preset-chip" data-preset="1">Rotterdam ➔ Berlin (22t Electronics)</button>
-                        <button class="preset-chip" data-preset="2">Paris ➔ Milano (28t Machinery)</button>
-                        <button class="preset-chip" data-preset="3">Calais ➔ Duisburg (19t Chemicals)</button>
-                        <button class="preset-chip" data-preset="4">Los Angeles ➔ Las Vegas (18t Beverages)</button>
-                        <button class="preset-chip random-chip" id="btnRandomDispatch">🎲 Generate Random Job</button>
+                    <!-- Target Game Switcher -->
+                    <div class="form-group form-group-full">
+                        <label>Target Game</label>
+                        <div class="game-select-toggle" id="dispatchGameToggle">
+                            <button type="button" class="game-opt active" data-game="ETS2" id="optGameETS2">🇪🇺 Euro Truck Simulator 2</button>
+                            <button type="button" class="game-opt" data-game="ATS" id="optGameATS">🇺🇸 American Truck Simulator</button>
+                        </div>
                     </div>
+
+                    <!-- Quick Presets -->
+                    <div class="modal-presets-label" id="modalPresetsLabel">QUICK PRESETS (POPULAR ROUTES)</div>
+                    <div class="presets-grid" id="presetsGrid">
+                        <!-- Populated dynamically by overlay.js based on selected game -->
+                    </div>
+                    <button class="preset-chip random-chip" id="btnRandomDispatch" style="width: 100%;">🎲 Generate Random Job</button>
 
                     <!-- Custom Form Fields -->
                     <div class="form-grid">
-                        <div class="form-group form-group-full">
-                            <label>Target Game</label>
-                            <div class="game-select-toggle" id="dispatchGameToggle">
-                                <button type="button" class="game-opt active" data-game="ETS2" id="optGameETS2">🇪🇺 Euro Truck Simulator 2</button>
-                                <button type="button" class="game-opt" data-game="ATS" id="optGameATS">🇺🇸 American Truck Simulator</button>
-                            </div>
-                        </div>
                         <div class="form-group">
                             <label>Origin City</label>
                             <input type="text" id="inputOriginCity" value="Rotterdam">

@@ -41,6 +41,7 @@ let activeGame = {
 };
 let previousGameCode = null;
 let selectedDispatchGame = 'ETS2';
+let selectedLogbookGameFilter = 'ALL'; // 'ALL' | 'ETS2' | 'ATS'
 let gameProcessCheckInterval = null;
 
 function normalizeGame(rawGame) {
@@ -59,6 +60,12 @@ function getGameFullName(code) {
     if (code === 'ATS') return 'American Truck Simulator';
     if (code === 'ETS2') return 'Euro Truck Simulator 2';
     return 'No Game Running';
+}
+
+function formatCurrency(amount, game = 'ETS2') {
+    const norm = normalizeGame(game) || 'ETS2';
+    const num = Number(amount || 0).toLocaleString();
+    return norm === 'ATS' ? `$${num}` : `€${num}`;
 }
 
 let telemetryConnected = false;
@@ -89,16 +96,27 @@ let currentFuel = 100; // percentage
 let currentTruckDmg = 0.0;
 let currentCargoDmg = 0.0;
 
-// Presets database for instant job generation
+// Presets database for instant job generation (Euro Truck Simulator 2 & American Truck Simulator)
 const JOB_PRESETS = [
+    // 🇪🇺 Euro Truck Simulator 2 Routes
     { originCity: 'Rotterdam', originCompany: 'EuroGoodies', destCity: 'Berlin', destCompany: 'LKW Logistik', cargo: 'Electronics Components', weight: 22.4, distance: 850, income: 38500, game: 'ETS2' },
     { originCity: 'Paris', originCompany: 'Tradeaux', destCity: 'Milano', destCompany: 'Transinet', cargo: 'Heavy Industrial Machinery', weight: 28.0, distance: 840, income: 42000, game: 'ETS2' },
     { originCity: 'Calais', originCompany: 'Sanbuilders', destCity: 'Duisburg', destCompany: 'BCP', cargo: 'Chemical Contraband / Hazmat', weight: 19.5, distance: 410, income: 24500, game: 'ETS2' },
     { originCity: 'Hamburg', originCompany: 'EuroAcres', destCity: 'Kraków', destCompany: 'POSPED', cargo: 'Medical Vaccines & Supplies', weight: 14.2, distance: 780, income: 49000, game: 'ETS2' },
+    { originCity: 'Amsterdam', originCompany: 'Marina', destCity: 'Prague', destCompany: 'ITCC', cargo: 'Auto Parts & Engines', weight: 24.8, distance: 890, income: 41200, game: 'ETS2' },
+    { originCity: 'London', originCompany: 'Stokes', destCity: 'Frankfurt', destCompany: 'Trameri', cargo: 'Aircraft Components', weight: 16.0, distance: 790, income: 51000, game: 'ETS2' },
+    { originCity: 'Stockholm', originCompany: 'Nordic Crown', destCity: 'Munich', destCompany: 'EuroGoodies', cargo: 'Timber & Prefab Housing', weight: 26.5, distance: 1320, income: 58900, game: 'ETS2' },
+    { originCity: 'Warsaw', originCompany: 'Tradeaux', destCity: 'Geneva', destCompany: 'Tree-ET', cargo: 'High-Tech Server Racks', weight: 17.8, distance: 1410, income: 64500, game: 'ETS2' },
+
+    // 🇺🇸 American Truck Simulator Routes
     { originCity: 'Los Angeles', originCompany: 'Coastline Mining', destCity: 'Las Vegas', destCompany: 'Charged', cargo: 'Luxury Beverages', weight: 18.0, distance: 440, income: 21000, game: 'ATS' },
     { originCity: 'Phoenix', originCompany: 'SellPlan', destCity: 'Albuquerque', destCompany: 'Wallbert', cargo: 'Fresh Farm Produce', weight: 21.5, distance: 720, income: 33400, game: 'ATS' },
-    { originCity: 'Amsterdam', originCompany: 'Marina', destCity: 'Prague', destCompany: 'ITCC', cargo: 'Auto Parts & Engines', weight: 24.8, distance: 890, income: 41200, game: 'ETS2' },
-    { originCity: 'London', originCompany: 'Stokes', destCity: 'Frankfurt', destCompany: 'Trameri', cargo: 'Aircraft Components', weight: 16.0, distance: 790, income: 51000, game: 'ETS2' }
+    { originCity: 'San Francisco', originCompany: 'Darchelle Uzau', destCity: 'Seattle', destCompany: 'Bitumen', cargo: 'Electronic Tech Components', weight: 19.8, distance: 1340, income: 56000, game: 'ATS' },
+    { originCity: 'Salt Lake City', originCompany: 'Plaster & Sons', destCity: 'Denver', destCompany: 'HMS Machinery', cargo: 'Heavy Construction Excavator', weight: 26.4, distance: 850, income: 44800, game: 'ATS' },
+    { originCity: 'Dallas', originCompany: 'Bushnell Farms', destCity: 'Houston', destCompany: 'Voltison Motors', cargo: 'Industrial Generator Turbines', weight: 24.0, distance: 420, income: 23500, game: 'ATS' },
+    { originCity: 'Portland', originCompany: 'Deepgrove', destCity: 'San Diego', destCompany: 'Port of San Diego', cargo: 'Processed Timber & Lumber', weight: 25.2, distance: 1750, income: 68200, game: 'ATS' },
+    { originCity: 'Las Vegas', originCompany: 'Wallbert', destCity: 'Reno', destCompany: 'Charged', cargo: 'Medical Pharmaceuticals', weight: 15.0, distance: 710, income: 37500, game: 'ATS' },
+    { originCity: 'El Paso', originCompany: 'Vitas Power', destCity: 'San Antonio', destCompany: 'Eddy\'s', cargo: 'Aviation Fuel & Additives', weight: 22.0, distance: 880, income: 46200, game: 'ATS' }
 ];
 
 // =======================================================
@@ -154,7 +172,7 @@ function loadSavedData() {
         if (savedHistory) {
             jobHistory = JSON.parse(savedHistory);
         } else {
-            // Seed initial realistic VTC job history so new drivers start with clean stats
+            // Seed initial realistic VTC job history covering both ETS2 and ATS
             jobHistory = [
                 {
                     id: 'job_init_1',
@@ -163,7 +181,7 @@ function loadSavedData() {
                     originCity: 'Rotterdam',
                     originCompany: 'EuroGoodies',
                     destCity: 'Berlin',
-                    destCompany: 'LKW',
+                    destCompany: 'LKW Logistik',
                     cargo: 'Medical Vaccines',
                     weight: 18.5,
                     distance: 850,
@@ -175,16 +193,16 @@ function loadSavedData() {
                 {
                     id: 'job_init_2',
                     date: new Date(Date.now() - 86400000).toISOString(),
-                    game: 'ETS2',
-                    originCity: 'Paris',
-                    originCompany: 'Tradeaux',
-                    destCity: 'Duisburg',
-                    destCompany: 'BCP',
-                    cargo: 'Electronic Chips',
-                    weight: 22.0,
-                    distance: 510,
-                    income: 27900,
-                    truckDamage: 0.2,
+                    game: 'ATS',
+                    originCity: 'Los Angeles',
+                    originCompany: 'Coastline Mining',
+                    destCity: 'Las Vegas',
+                    destCompany: 'Charged',
+                    cargo: 'Luxury Beverages',
+                    weight: 18.0,
+                    distance: 440,
+                    income: 21000,
+                    truckDamage: 0.1,
                     cargoDamage: 0.0,
                     rating: '5.0 ★'
                 }
@@ -416,16 +434,18 @@ function setupTabs() {
 // =======================================================
 function setupTelemetryControls() {
     document.getElementById('btnCheckTelemetry').addEventListener('click', async () => {
-        showToast('Connecting to ETS2 / ATS Telemetry...');
+        const targetGame = activeGame.code || 'ETS2 / ATS';
+        showToast(`Connecting to ${targetGame} Telemetry...`);
         // Request main process to verify/launch the bridge
         ipcRenderer.send('restart-bridge');
         
         setTimeout(async () => {
             const ok = await pollSCS();
             if (ok) {
-                showToast('🟢 Telemetry Connected to ETS2!');
+                const gameName = activeGame.code || 'Game';
+                showToast(`🟢 Telemetry Connected to ${gameName}!`);
             } else {
-                showToast('Searching for ETS2 (Port 3737 / 25555)...');
+                showToast('Searching for ETS2 / ATS (Port 3737 / 25555)...');
             }
         }, 350);
     });
@@ -638,34 +658,48 @@ async function pollSCS() {
     try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 800);
-        const res = await fetch('http://127.0.0.1:3737/api/ets2/telemetry', { signal: controller.signal });
+        const res = await fetch('http://127.0.0.1:3737/api/telemetry', { signal: controller.signal });
         clearTimeout(timeout);
 
         if (res.ok) {
             const data = await res.json();
-            handleLiveTelemetryData(data);
-            return true;
+            if (data && (data.connected || data.speed !== undefined || data.TruckValues)) {
+                handleLiveTelemetryData(data);
+                return true;
+            }
         }
     } catch {
         // Bridge may be starting
     }
 
     // 2. Fallback to standard SCS / Funbit server (port 25555)
-    try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 800);
-        const res = await fetch('http://127.0.0.1:25555/api/ets2/telemetry', { signal: controller.signal });
-        clearTimeout(timeout);
+    // Probe ATS first if ATS process is active, otherwise probe ETS2 first
+    const isATS = activeGame.code === 'ATS';
+    const endpointsToTry = isATS
+        ? ['http://127.0.0.1:25555/api/ats/telemetry', 'http://127.0.0.1:25555/api/ets2/telemetry', 'http://127.0.0.1:25555/api/telemetry']
+        : ['http://127.0.0.1:25555/api/ets2/telemetry', 'http://127.0.0.1:25555/api/ats/telemetry', 'http://127.0.0.1:25555/api/telemetry'];
 
-        if (res.ok) {
-            const data = await res.json();
-            handleLiveTelemetryData(data);
-            return true;
+    for (const url of endpointsToTry) {
+        try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 600);
+            const res = await fetch(url, { signal: controller.signal });
+            clearTimeout(timeout);
+
+            if (res.ok) {
+                const data = await res.json();
+                if (data && (data.connected || data.truck?.speed !== undefined || data.TruckValues || data.speed !== undefined)) {
+                    handleLiveTelemetryData(data);
+                    return true;
+                }
+            }
+        } catch {
+            // Try next candidate endpoint
         }
-    } catch {
-        setTelemetryStatus('STANDBY', false);
-        return false;
     }
+
+    setTelemetryStatus('STANDBY', false);
+    return false;
 }
 
 function setTelemetryStatus(status, isLive, isDemo = false, isPaused = false, game = 'ETS2') {
@@ -1169,9 +1203,10 @@ function renderActiveJob() {
     }
 
     // Set Header
-    document.getElementById('jobGameTag').textContent = activeJob.game || 'ETS2';
-    document.getElementById('jobGameTag').className = `game-tag ${(activeJob.game || 'ets2').toLowerCase()}`;
-    document.getElementById('jobIncomeTag').textContent = `€${Number(activeJob.income).toLocaleString()}`;
+    const gameForJob = activeJob.game || (activeGame.code || 'ETS2');
+    document.getElementById('jobGameTag').textContent = gameForJob;
+    document.getElementById('jobGameTag').className = `game-tag ${gameForJob.toLowerCase()}`;
+    document.getElementById('jobIncomeTag').textContent = formatCurrency(activeJob.income, gameForJob);
     document.getElementById('jobStatusPill').textContent = activeJob.status || 'IN TRANSIT';
     document.getElementById('jobStatusPill').className = 'job-status-pill in-transit';
 
@@ -1528,10 +1563,35 @@ function setupModals() {
     const optETS2 = document.getElementById('optGameETS2');
     const optATS = document.getElementById('optGameATS');
 
+    function renderDispatchPresets(game) {
+        const grid = document.getElementById('presetsGrid');
+        if (!grid) return;
+        const matching = JOB_PRESETS.filter(p => p.game === game);
+        const list = matching.length > 0 ? matching : JOB_PRESETS.filter(p => p.game === 'ETS2');
+        
+        grid.innerHTML = list.slice(0, 4).map((p, idx) => {
+            const sym = p.game === 'ATS' ? '$' : '€';
+            return `<button type="button" class="preset-chip" data-idx="${idx}">${escapeHtml(p.originCity)} ➔ ${escapeHtml(p.destCity)} (${p.weight}t ${escapeHtml(p.cargo)})</button>`;
+        }).join('');
+
+        grid.querySelectorAll('.preset-chip').forEach((chip, i) => {
+            chip.addEventListener('click', () => {
+                applyPreset(list[i]);
+            });
+        });
+
+        const label = document.getElementById('modalPresetsLabel');
+        if (label) {
+            label.textContent = `QUICK PRESETS (${game === 'ATS' ? 'AMERICAN TRUCK SIMULATOR' : 'EURO TRUCK SIMULATOR 2'})`;
+        }
+    }
+
     function setDispatchGame(game) {
         selectedDispatchGame = game;
         if (optETS2) optETS2.classList.toggle('active', game === 'ETS2');
         if (optATS) optATS.classList.toggle('active', game === 'ATS');
+
+        renderDispatchPresets(game);
 
         // Filter and apply first matching preset for the chosen game
         const matching = JOB_PRESETS.filter(p => p.game === game);
@@ -1562,14 +1622,6 @@ function setupModals() {
         document.getElementById('dispatchModal').style.display = 'none';
     });
 
-    // Quick Preset Chips
-    document.querySelectorAll('.preset-chip[data-preset]').forEach(chip => {
-        chip.addEventListener('click', () => {
-            const idx = parseInt(chip.dataset.preset, 10) - 1;
-            applyPreset(JOB_PRESETS[idx]);
-        });
-    });
-
     // Random Preset Button
     document.getElementById('btnRandomDispatch').addEventListener('click', () => {
         const matching = JOB_PRESETS.filter(p => p.game === selectedDispatchGame);
@@ -1580,11 +1632,17 @@ function setupModals() {
 
     // Start Custom Job
     document.getElementById('btnStartCustomJob').addEventListener('click', () => {
-        const originCity = document.getElementById('inputOriginCity').value.trim() || 'Rotterdam';
-        const originCompany = document.getElementById('inputOriginCompany').value.trim() || 'EuroGoodies';
-        const destCity = document.getElementById('inputDestCity').value.trim() || 'Berlin';
-        const destCompany = document.getElementById('inputDestCompany').value.trim() || 'LKW Logistik';
-        const cargo = document.getElementById('inputCargo').value.trim() || 'Freight';
+        const isATS = selectedDispatchGame === 'ATS';
+        const defaultOrigin = isATS ? 'Los Angeles' : 'Rotterdam';
+        const defaultOriginCompany = isATS ? 'Coastline Mining' : 'EuroGoodies';
+        const defaultDest = isATS ? 'Las Vegas' : 'Berlin';
+        const defaultDestCompany = isATS ? 'Charged' : 'LKW Logistik';
+
+        const originCity = document.getElementById('inputOriginCity').value.trim() || defaultOrigin;
+        const originCompany = document.getElementById('inputOriginCompany').value.trim() || defaultOriginCompany;
+        const destCity = document.getElementById('inputDestCity').value.trim() || defaultDest;
+        const destCompany = document.getElementById('inputDestCompany').value.trim() || defaultDestCompany;
+        const cargo = document.getElementById('inputCargo').value.trim() || 'Freight Cargo';
         const weight = parseFloat(document.getElementById('inputWeight').value) || 20;
         const distance = parseInt(document.getElementById('inputDistance').value, 10) || 500;
         const income = parseInt(document.getElementById('inputIncome').value, 10) || 25000;
@@ -1666,9 +1724,10 @@ function applyPreset(preset) {
 }
 
 function showCompletionModal(job) {
+    const jGame = normalizeGame(job.game) || 'ETS2';
     document.getElementById('compRouteTitle').textContent = `${job.originCity} ➔ ${job.destCity}`;
-    document.getElementById('compCargoSubtitle').textContent = `Delivered ${job.weight}t of ${job.cargo}`;
-    document.getElementById('compFinalPayout').textContent = `€${Number(job.income).toLocaleString()}`;
+    document.getElementById('compCargoSubtitle').textContent = `Delivered ${job.weight}t of ${job.cargo} (${jGame})`;
+    document.getElementById('compFinalPayout').textContent = formatCurrency(job.income, jGame);
     document.getElementById('compFinalDistance').textContent = `${job.distance.toLocaleString()} km`;
     document.getElementById('compFinalDamage').textContent = `${job.cargoDamage}%`;
     document.getElementById('compFinalRating').textContent = job.rating;
@@ -1682,17 +1741,20 @@ function showCompletionModal(job) {
 function generateDiscordReceipt(job) {
     const callsign = driverProfile.callsign || 'Driver #01';
     const dateStr = new Date(job.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const jGame = normalizeGame(job.game) || 'ETS2';
+    const gameFull = getGameFullName(jGame);
+    const payoutFormatted = formatCurrency(job.income, jGame);
 
     return `══════════════════════════════════════════
 🚚 DELIVERY DISPATCH LOG
 ══════════════════════════════════════════
 👤 Driver: ${callsign}
-🎮 Game: ${job.game}
+🎮 Game: ${gameFull} (${jGame})
 📍 Departure: ${job.originCity} (${job.originCompany})
 🏁 Destination: ${job.destCity} (${job.destCompany})
 📦 Cargo: ${job.cargo} [${job.weight} Tonnes]
 🛣️ Distance: ${job.distance} km
-💰 Payout: €${Number(job.income).toLocaleString()}
+💰 Payout: ${payoutFormatted}
 🚛 Truck Damage: ${job.truckDamage}% | 📦 Cargo Damage: ${job.cargoDamage}%
 ⭐ Performance Score: ${job.rating}
 📅 Timestamp: ${dateStr}
@@ -1704,8 +1766,23 @@ TruckersMP / TrucklineMP Verified Delivery ✅
 //  LOGBOOK MANAGEMENT
 // =======================================================
 function setupLogbookControls() {
-    document.getElementById('lbSearchInput').addEventListener('input', (e) => {
-        renderLogbook(e.target.value.toLowerCase().trim());
+    const searchInput = document.getElementById('lbSearchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            renderLogbook(e.target.value.toLowerCase().trim(), selectedLogbookGameFilter);
+        });
+    }
+
+    // Game Filter Pills
+    const filterButtons = document.querySelectorAll('#lbGameFilterGroup .lb-filter-btn');
+    filterButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            filterButtons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            selectedLogbookGameFilter = btn.dataset.game || 'ALL';
+            const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
+            renderLogbook(query, selectedLogbookGameFilter);
+        });
     });
 
     document.getElementById('btnCopyAllDiscord').addEventListener('click', () => {
@@ -1714,13 +1791,20 @@ function setupLogbookControls() {
             return;
         }
 
-        const totalKm = jobHistory.reduce((acc, j) => acc + (j.distance || 0), 0);
-        const totalRev = jobHistory.reduce((acc, j) => acc + (j.income || 0), 0);
-        const summary = `📊 **Driver Logbook Summary**\n` +
+        const filtered = (selectedLogbookGameFilter && selectedLogbookGameFilter !== 'ALL')
+            ? jobHistory.filter(j => (normalizeGame(j.game) || 'ETS2') === selectedLogbookGameFilter)
+            : jobHistory;
+
+        const totalKm = filtered.reduce((acc, j) => acc + (j.distance || 0), 0);
+        const totalRev = filtered.reduce((acc, j) => acc + (j.income || 0), 0);
+        const filterTag = selectedLogbookGameFilter === 'ALL' ? 'All Games' : selectedLogbookGameFilter;
+        const cur = selectedLogbookGameFilter === 'ATS' ? '$' : '€';
+
+        const summary = `📊 **Driver Logbook Summary (${filterTag})**\n` +
             `Driver: **${driverProfile.callsign}**\n` +
-            `Total Deliveries: **${jobHistory.length}**\n` +
+            `Total Deliveries: **${filtered.length}**\n` +
             `Total Distance Hauled: **${totalKm.toLocaleString()} km**\n` +
-            `Total Revenue Earned: **€${totalRev.toLocaleString()}**\n` +
+            `Total Revenue Earned: **${cur}${totalRev.toLocaleString()}**\n` +
             `Verified with Tracker Overlay 🚚`;
 
         navigator.clipboard.writeText(summary).then(() => {
@@ -1734,29 +1818,25 @@ function setupLogbookControls() {
         if (confirm('Clear all logged deliveries from history?')) {
             jobHistory = [];
             saveHistory();
-            renderLogbook();
+            renderLogbook('', selectedLogbookGameFilter);
             updateDriverStats();
             showToast('Logbook cleared');
         }
     });
 }
 
-function renderLogbook(searchQuery = '') {
+function renderLogbook(searchQuery = '', gameFilter = selectedLogbookGameFilter) {
     const listEl = document.getElementById('logbookList');
 
-    // Totals
-    const totalJobs = jobHistory.length;
-    const totalKm = jobHistory.reduce((acc, j) => acc + (j.distance || 0), 0);
-    const totalRev = jobHistory.reduce((acc, j) => acc + (j.income || 0), 0);
-
-    document.getElementById('lbTotalJobs').textContent = totalJobs;
-    document.getElementById('lbTotalDistance').textContent = `${totalKm.toLocaleString()} km`;
-    document.getElementById('lbTotalRevenue').textContent = `€${totalRev.toLocaleString()}`;
-
-    // Filter
+    // Filter by game
     let filtered = jobHistory;
+    if (gameFilter && gameFilter !== 'ALL') {
+        filtered = filtered.filter(j => (normalizeGame(j.game) || 'ETS2') === gameFilter);
+    }
+
+    // Filter by search query
     if (searchQuery) {
-        filtered = jobHistory.filter(j =>
+        filtered = filtered.filter(j =>
             j.originCity.toLowerCase().includes(searchQuery) ||
             j.destCity.toLowerCase().includes(searchQuery) ||
             j.cargo.toLowerCase().includes(searchQuery) ||
@@ -1764,19 +1844,37 @@ function renderLogbook(searchQuery = '') {
         );
     }
 
+    // Totals for the current filtered view
+    const totalJobs = filtered.length;
+    const totalKm = filtered.reduce((acc, j) => acc + (j.distance || 0), 0);
+    const totalRev = filtered.reduce((acc, j) => acc + (j.income || 0), 0);
+
+    document.getElementById('lbTotalJobs').textContent = totalJobs;
+    document.getElementById('lbTotalDistance').textContent = `${totalKm.toLocaleString()} km`;
+    
+    if (gameFilter === 'ATS') {
+        document.getElementById('lbTotalRevenue').textContent = `$${totalRev.toLocaleString()}`;
+    } else if (gameFilter === 'ETS2') {
+        document.getElementById('lbTotalRevenue').textContent = `€${totalRev.toLocaleString()}`;
+    } else {
+        document.getElementById('lbTotalRevenue').textContent = `€${totalRev.toLocaleString()}`;
+    }
+
     if (filtered.length === 0) {
-        listEl.innerHTML = `<div style="text-align: center; padding: 24px; color: var(--text-muted); font-size: 11px;">No deliveries found in logbook.</div>`;
+        listEl.innerHTML = `<div style="text-align: center; padding: 24px; color: var(--text-muted); font-size: 11px;">No deliveries found for ${gameFilter === 'ALL' ? 'this query' : gameFilter}.</div>`;
         return;
     }
 
     listEl.innerHTML = filtered.map(job => {
+        const jGame = normalizeGame(job.game) || 'ETS2';
         const dateStr = new Date(job.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+        const formattedPayout = formatCurrency(job.income, jGame);
         return `
             <div class="log-item" data-id="${job.id}">
                 <div class="log-item-header">
-                    <span class="game-tag ${(job.game || 'ets2').toLowerCase()}">${job.game || 'ETS2'}</span>
+                    <span class="game-tag ${jGame.toLowerCase()}">${jGame}</span>
                     <span class="log-date">${dateStr}</span>
-                    <span class="log-payout">+€${Number(job.income).toLocaleString()}</span>
+                    <span class="log-payout">+${formattedPayout}</span>
                 </div>
                 <div class="log-route">${escapeHtml(job.originCity)} ➔ ${escapeHtml(job.destCity)}</div>
                 <div class="log-details">
@@ -1807,7 +1905,7 @@ function renderLogbook(searchQuery = '') {
         btn.addEventListener('click', () => {
             jobHistory = jobHistory.filter(item => item.id !== btn.dataset.id);
             saveHistory();
-            renderLogbook(searchQuery);
+            renderLogbook(searchQuery, selectedLogbookGameFilter);
             updateDriverStats();
         });
     });
@@ -1819,22 +1917,26 @@ function exportLogbookCSV() {
         return;
     }
 
-    const headers = ['Date', 'Game', 'Origin City', 'Origin Company', 'Destination City', 'Destination Company', 'Cargo', 'Weight (t)', 'Distance (km)', 'Revenue (EUR)', 'Truck Damage (%)', 'Cargo Damage (%)', 'Rating'];
-    const rows = jobHistory.map(j => [
-        `"${j.date}"`,
-        `"${j.game || 'ETS2'}"`,
-        `"${j.originCity}"`,
-        `"${j.originCompany}"`,
-        `"${j.destCity}"`,
-        `"${j.destCompany}"`,
-        `"${j.cargo}"`,
-        j.weight,
-        j.distance,
-        j.income,
-        j.truckDamage,
-        j.cargoDamage,
-        `"${j.rating}"`
-    ]);
+    const headers = ['Date', 'Game', 'Origin City', 'Origin Company', 'Destination City', 'Destination Company', 'Cargo', 'Weight (t)', 'Distance (km)', 'Currency', 'Revenue', 'Truck Damage (%)', 'Cargo Damage (%)', 'Rating'];
+    const rows = jobHistory.map(j => {
+        const jGame = normalizeGame(j.game) || 'ETS2';
+        return [
+            `"${j.date}"`,
+            `"${jGame}"`,
+            `"${j.originCity}"`,
+            `"${j.originCompany}"`,
+            `"${j.destCity}"`,
+            `"${j.destCompany}"`,
+            `"${j.cargo}"`,
+            j.weight,
+            j.distance,
+            `"${jGame === 'ATS' ? 'USD' : 'EUR'}"`,
+            j.income,
+            j.truckDamage,
+            j.cargoDamage,
+            `"${j.rating}"`
+        ];
+    });
 
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
@@ -2048,8 +2150,11 @@ function updateDriverStats() {
         ? (jobHistory.reduce((acc, j) => acc + parseFloat(j.cargoDamage || 0), 0) / jobHistory.length).toFixed(1)
         : '0.0';
 
+    const atsCount = jobHistory.filter(j => (normalizeGame(j.game) || 'ETS2') === 'ATS').length;
+    const isPureATS = atsCount > 0 && atsCount === jobHistory.length;
+
     document.getElementById('dmDistance').textContent = `${totalKm.toLocaleString()} km`;
-    document.getElementById('dmEarnings').textContent = `€${totalEarnings.toLocaleString()}`;
+    document.getElementById('dmEarnings').textContent = isPureATS ? `$${totalEarnings.toLocaleString()}` : `€${totalEarnings.toLocaleString()}`;
     document.getElementById('dmFreight').textContent = `${Math.round(totalFreight)} t`;
     document.getElementById('dmAvgDamage').textContent = `${avgDmg}%`;
 
@@ -2909,12 +3014,13 @@ function buildDiscordActivity() {
     if (hasJob) {
         const route = `${activeJob.originCity} ➔ ${activeJob.destCity}`;
         const pct = Math.min(100, Math.round(((activeJob.drivenDistance || 0) / (activeJob.distance || 1)) * 100));
+        const isMph = driverProfile.unit === 'mph';
+        const distRemainingFormatted = isMph ? `${Math.round(est.distanceRemaining * 0.621371)} mi` : `${est.distanceRemaining} km`;
 
         details = `🚛 ${route} (${game})`;
 
-        let stateParts = [`${activeJob.cargo || 'Cargo'} • ${pct}% • ${est.distanceRemaining} km left (~${est.durationFormatted})`];
+        let stateParts = [`${activeJob.cargo || 'Cargo'} • ${pct}% • ${distRemainingFormatted} left (~${est.durationFormatted})`];
         if (discordShowSpeed && telemetryConnected && currentSpeed > 0) {
-            const isMph = driverProfile.unit === 'mph';
             const spd = isMph ? Math.round(currentSpeed * 0.621371) : currentSpeed;
             const unit = isMph ? 'mph' : 'km/h';
             stateParts.push(`${spd} ${unit}`);
@@ -2978,6 +3084,8 @@ function updateDiscordPreview() {
     const game = (activeJob && activeJob.game) ? activeJob.game.toUpperCase() : (activeGame.code || 'ETS2');
     const gameFullName = getGameFullName(game);
     const est = calculateTripEstimation();
+    const isMph = driverProfile.unit === 'mph';
+    const distRemainingFormatted = isMph ? `${Math.round(est.distanceRemaining * 0.621371)} mi` : `${est.distanceRemaining} km`;
 
     // Game name
     const gameNameEl = document.getElementById('dpmGameName');
@@ -3000,9 +3108,8 @@ function updateDiscordPreview() {
     if (detail2El) {
         if (hasJob) {
             const pct = Math.min(100, Math.round(((activeJob.drivenDistance || 0) / (activeJob.distance || 1)) * 100));
-            let parts = [`${activeJob.cargo || 'Cargo'} • ${pct}% • ${est.distanceRemaining} km (${est.durationFormatted})`];
+            let parts = [`${activeJob.cargo || 'Cargo'} • ${pct}% • ${distRemainingFormatted} (${est.durationFormatted})`];
             if (discordShowSpeed && telemetryConnected && currentSpeed > 0) {
-                const isMph = driverProfile.unit === 'mph';
                 const spd = isMph ? Math.round(currentSpeed * 0.621371) : currentSpeed;
                 const unit = isMph ? 'mph' : 'km/h';
                 parts.push(`${spd} ${unit}`);

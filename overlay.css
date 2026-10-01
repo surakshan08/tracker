@@ -1535,6 +1535,54 @@ body.compact .compact-strip {
     color: #fff;
 }
 
+/* Logbook Game Filter Pills */
+.logbook-game-filters {
+    display: flex;
+    gap: 6px;
+    margin: 2px 0 6px 0;
+}
+
+.lb-filter-btn {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 5px 8px;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: center;
+}
+
+.lb-filter-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: var(--border-hover);
+    color: var(--text-primary);
+}
+
+.lb-filter-btn.active {
+    background: rgba(196, 135, 59, 0.2);
+    border-color: var(--accent);
+    color: var(--accent-light);
+    box-shadow: 0 0 8px var(--accent-glow);
+}
+
+.lb-filter-btn.ets2.active {
+    background: rgba(59, 130, 246, 0.2);
+    border-color: #3b82f6;
+    color: #93c5fd;
+    box-shadow: 0 0 8px rgba(59, 130, 246, 0.3);
+}
+
+.lb-filter-btn.ats.active {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: #ef4444;
+    color: #fca5a5;
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.3);
+}
+
 .logbook-list {
     display: flex;
     flex-direction: column;
